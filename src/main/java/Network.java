@@ -1,14 +1,16 @@
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
 public class Network {
-    private String Name =null;
-    private String bssid = null;
+    private String name = null;
+    private byte[] bssid = null;
     private List<Node> nodes = new ArrayList<Node>();
+    private boolean selected = false;
 
-    public Network(String bssid) {
-        this.bssid = bssid;
+    Network(String name) {
+        this.name = name;
     }
 
     public void addNode(Node node) {
@@ -17,7 +19,7 @@ public class Network {
     }
 
     public void setName(String name) {
-        Name = name;
+        name = name;
     }
 
     public boolean contains(Node node) {
@@ -28,29 +30,33 @@ public class Network {
         return false;
     }
 
-    public String getBssid() {
-        return bssid;
+    public String getBssidString() {
+        return Node.macToString(bssid);
     }
+    public byte[] getBssid() { return this.bssid; }
+    public void setBssid(byte[] bssid) { this.bssid = bssid; }
 
     public List<Node> getNodes() {
         return nodes;
     }
 
     public String getName() {
-        return Name;
+        return name;
     }
+
+    public boolean getSelected() { return selected; }
+    public void setSelected(boolean selected) { this.selected = selected; }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Network network = (Network) o;
-        return Objects.equals(bssid, network.bssid);
+        return Objects.equals(name, network.name);
     }
 
     @Override
     public int hashCode() {
-
-        return Objects.hash(bssid);
+        return Objects.hash(name);
     }
 }

