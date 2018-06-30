@@ -32,9 +32,9 @@ public class UI implements Runnable {
         screen = new TerminalScreen(terminal);
         window = new BasicWindow();
 
-        TextBox textBox = new TextBox();
+        textBox = new TextBox();
         netComp = new Label("");
-        errorComp = new Label("Scanning for networks...");
+        errorComp = new Label("");
         header = new Label("");
 
         textBox.setPreferredSize(terminalSize.withRows(1));

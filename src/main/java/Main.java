@@ -24,9 +24,10 @@ class Main {
                 "                                                 __/ |\n" +
                 "                                                |___/ \n" +
                 "\n");
+        ui.setStatus("");
 
         class updateUI extends TimerTask {
-            List<Network> found = null;
+            private final List<Network> found;
             UI ui = null;
 
             updateUI(List<Network> found, UI ui) {
@@ -36,9 +37,11 @@ class Main {
 
             public void run() {
                 synchronized (found) {
-                    found = collector.getNetworks();
+                    found.clear();
                     ui.clear();
+                    found.addAll(collector.getNetworks());
                     int count = 0;
+
                     for (Network nw : found) {
                         if (nw.getBssid() != null && nw.getName() != null) {
                             count++;
@@ -48,6 +51,13 @@ class Main {
                                 ui.printLine("      [" + count + "] " + nd.getMacString() + " " +  ((nd.getSelected()) ? "<-- DEAUTHING" : ""));
                             }
                         }
+
+                        /*
+                        System.out.println("---ALL-----");
+                        for (Node nd : nw.getNodes()) {
+                            System.out.println(nd.getMacString());
+                        }
+                        System.out.println("------------");*/
                     }
                 }
             }
@@ -62,8 +72,8 @@ class Main {
             synchronized (found) {
                 try {
                     if (input != "") {
-                        System.out.println("PRINTED: "+input);
                         int selected = Integer.parseInt(input);
+                        System.out.println("PRINTED: "+selected);
                         int count = 0;
                         for (Network nw : found) {
                             //if(count == selected)
@@ -88,7 +98,7 @@ class Main {
                 } catch (NotOpenException e) {
                     e.printStackTrace();
                 } catch (NumberFormatException e) {
-                    ui.setStatus(input+" is not a number!");
+                    ui.setStatus("ERROR: Index must be a number");
                 }
             }
         }

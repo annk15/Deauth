@@ -1,17 +1,9 @@
 import org.apache.commons.codec.binary.Hex;
-import org.omg.Messaging.SYNC_WITH_TRANSPORT;
 import org.pcap4j.core.*;
 import org.pcap4j.packet.Packet;
-
-import java.io.EOFException;
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeoutException;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -89,7 +81,6 @@ public class MessageCollector implements Runnable {
 
                         //Probe resp
                         else if (packetData[0x19] == 0x50) {
-
                             String name = extractSSID(0x3e, packetData);
 
                             for (Network nw : networks) {
@@ -118,7 +109,6 @@ public class MessageCollector implements Runnable {
     }
 
     public List<Network> getNetworks() {
-        System.out.println(networks);
         return networks;
     }
 
